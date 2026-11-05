@@ -1,0 +1,7 @@
+.venv/
+.kasirbbm_env/
+__pycache__/
+*.pyc
+*.pyo
+*.db
+.vscode/
