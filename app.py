@@ -587,6 +587,9 @@ def main():
     st.markdown(
         """
         <style>
+            html {
+                font-size: 14px;
+            }
             input, textarea {
                 color: #111827 !important;
             }
@@ -687,7 +690,7 @@ def main():
                 }
                 .nusa-title {
                     color: #172b35;
-                    font-size: clamp(2.8rem, 8vw, 5.2rem);
+                    font-size: clamp(2.2rem, 6vw, 4rem);
                     font-weight: 750;
                     letter-spacing: 0.08em;
                     line-height: 1.08;
@@ -695,7 +698,7 @@ def main():
                 }
                 .nusa-subtitle {
                     color: #6b7b82;
-                    font-size: 1.05rem;
+                    font-size: 0.95rem;
                     margin-top: 1.2rem;
                 }
                 div.stButton > button[kind="primary"] {
@@ -734,12 +737,6 @@ def main():
         )
         _, button_column, _ = st.columns([1, 1, 1])
         with button_column:
-            tanggal_login = st.date_input(
-                "Pilih tanggal transaksi",
-                value=date.today(),
-                key="tanggal_login",
-                format="DD/MM/YYYY",
-            )
             username = st.text_input(
                 "Masukkan username",
                 placeholder="Contoh: ryan",
@@ -756,7 +753,7 @@ def main():
                 username_normalized = username.strip().lower()
                 if username_is_allowed(username_normalized):
                     st.session_state.username_login = username_normalized
-                    st.session_state.tanggal_transaksi = tanggal_login
+                    st.session_state.tanggal_transaksi = date.today()
                     st.session_state.dashboard_masuk = True
                     st.query_params["logged_in"] = "true"
                     st.query_params["user"] = username_normalized
@@ -838,7 +835,7 @@ def main():
             }
             .dashboard-heading {
                 color: #14283f;
-                font-size: clamp(1.7rem, 3vw, 2.2rem);
+                font-size: clamp(1.45rem, 2.5vw, 1.9rem);
                 font-weight: 750;
                 line-height: 1.15;
                 margin: 0;
@@ -979,12 +976,15 @@ def main():
                     f"Harga Modal: {format_rupiah(int(produk_info['cost_price']))}"
                 )
 
+            quantity_key = f"jumlah_beli_{pilihan_produk}"
+            if st.session_state.pop(f"reset_{quantity_key}", False):
+                st.session_state[quantity_key] = 0
             jumlah_beli = st.number_input(
                 "Jumlah Beli (Liter)",
-                min_value=1,
-                value=1,
+                min_value=0,
+                value=0,
                 step=1,
-                key=f"jumlah_beli_{pilihan_produk}",
+                key=quantity_key,
             )
             total_transaksi = harga_transaksi * jumlah_beli
             sisa_stok_setelah = stok_sekarang - jumlah_beli
@@ -994,7 +994,10 @@ def main():
             st.write(f"Jumlah beli: {jumlah_beli:,} liter")
             st.write(f"Total: {format_rupiah(total_transaksi)}")
             st.write(f"Sisa stok setelah transaksi: {max(sisa_stok_setelah, 0):,} liter")
-            if st.button("Proses Transaksi"):
+            if st.button("Proses Transaksi", disabled=jumlah_beli == 0):
+                if jumlah_beli <= 0:
+                    st.error("Jumlah beli harus lebih dari 0 liter.")
+                    st.stop()
                 if jumlah_beli > stok_sekarang:
                     st.error(
                         f"Jumlah beli melebihi stok yang tersedia "
@@ -1061,6 +1064,7 @@ def main():
                     else:
                         st.error("Stok tidak mencukupi!")
                         st.stop()
+                st.session_state[f"reset_{quantity_key}"] = True
                 st.success("Transaksi berhasil!")
                 st.rerun()
 
@@ -1186,10 +1190,12 @@ def main():
                 else max(int(produk_terpilih["catalog_price"]) - 4000, 0)
             )
 
+            if st.session_state.pop("reset_restock_jumlah_pasokan", False):
+                st.session_state["restock_jumlah_pasokan"] = 0
             jumlah_pasokan = st.number_input(
                 "Jumlah pasokan masuk (liter)",
-                min_value=1,
-                value=1000,
+                min_value=0,
+                value=0,
                 step=100,
                 key="restock_jumlah_pasokan",
             )
@@ -1199,7 +1205,15 @@ def main():
             st.write(f"Saldo stok yang dimiliki: {saldo_sekarang:,} liter")
             st.metric("Total harga", format_rupiah(total_harga))
 
-            if st.button("Beli", type="primary", use_container_width=True):
+            if st.button(
+                "Beli",
+                type="primary",
+                use_container_width=True,
+                disabled=jumlah_pasokan == 0,
+            ):
+                if jumlah_pasokan <= 0:
+                    st.error("Jumlah pasokan harus lebih dari 0 liter.")
+                    st.stop()
                 if harga_per_liter <= 0:
                     st.error("Harga modal produk belum diatur dengan benar. Silakan atur harga modal terlebih dahulu.")
                 else:
@@ -1236,6 +1250,7 @@ def main():
                         "datetime": pembelian_waktu,
                     }
                     st.session_state["show_struk"] = True
+                    st.session_state["reset_restock_jumlah_pasokan"] = True
                     st.success(
                         f"Pembelian {produk_restock} berhasil ditambahkan sebanyak "
                         f"{jumlah_pasokan:,} liter."
@@ -1402,12 +1417,15 @@ def main():
                     st.write(f"Harga modal: {format_rupiah(int(produk_info['cost_price']))}")
 
             with col_form_2:
+                quantity_key = "transaksi_page_jumlah"
+                if st.session_state.pop(f"reset_{quantity_key}", False):
+                    st.session_state[quantity_key] = 0
                 jumlah_beli = st.number_input(
                     "Jumlah Beli (Liter)",
-                    min_value=1,
-                    value=1,
+                    min_value=0,
+                    value=0,
                     step=1,
-                    key="transaksi_page_jumlah",
+                    key=quantity_key,
                 )
                 total_harga = harga_transaksi * jumlah_beli
                 sisa_stok_setelah = stok_sekarang - jumlah_beli
@@ -1423,7 +1441,15 @@ def main():
                 else:
                     plat_nomor = ""
 
-            if st.button("Proses Transaksi", type="primary", use_container_width=True):
+            if st.button(
+                "Proses Transaksi",
+                type="primary",
+                use_container_width=True,
+                disabled=jumlah_beli == 0,
+            ):
+                if jumlah_beli <= 0:
+                    st.error("Jumlah beli harus lebih dari 0 liter.")
+                    st.stop()
                 if jumlah_beli > stok_sekarang:
                     st.error(
                         f"Jumlah beli melebihi stok yang tersedia ({stok_sekarang} liter)."
@@ -1478,6 +1504,7 @@ def main():
                             ),
                         )
                         connection.commit()
+                        st.session_state[f"reset_{quantity_key}"] = True
                         st.success("Transaksi berhasil diproses.")
                         st.rerun()
                     else:
